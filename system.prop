@@ -1,0 +1,10 @@
+#
+# system.prop for odroid
+#
+
+ro.arch=exynos5410
+ro.kernel.qemu=0
+ro.kernel.qemu.gles=0
+persist.demo.hdmirotationlock=false
+mouse.right.click=back
+#persist.demo.hdmirotation=portrait

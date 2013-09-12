@@ -1,0 +1,184 @@
+import init.odroidxu.usb.rc
+
+on init
+    start watchdogd
+
+    # See storage config details at http://source.android.com/tech/storage/
+    mkdir /storage/usb1 0000 system system
+    mkdir /storage/usb2 0000 system system
+    mkdir /storage/usb3 0000 system system
+    export EXTERNAL_STORAGE /mnt/sdcard
+    export SECONDARY_STORAGE /mnt/ext_sd:/storage/usb1:/storage/usb2:/storage/usb3
+    mkdir /mnt/sdcard 0000 system system
+    mkdir /mnt/ext_sd 0000 system system
+
+    # Support legacy paths
+    symlink /mnt/sdcard /sdcard
+
+on post-fs-data
+    mkdir /data/media 0770 media_rw media_rw
+
+# See storage config details at http://source.android.com/tech/storage/
+    mkdir /storage/usb1 0000 system system
+    mkdir /storage/usb2 0000 system system
+    mkdir /storage/usb3 0000 system system
+    export EXTERNAL_STORAGE /mnt/sdcard
+    export SECONDARY_STORAGE /mnt/ext_sd:/storage/usb1:/storage/usb2:/storage/usb3
+    mkdir /mnt/sdcard 0000 system system
+    mkdir /mnt/ext_sd 0000 system system
+
+    # Support legacy paths
+    symlink /mnt/sdcard /sdcard
+
+
+    setprop vold.post_fs_data_done 1
+
+on boot
+    mount debugfs /sys/kernel/debug /sys/kernel/debug
+    setprop ro.radio.noril yes
+    setprop ro.kernel.android.ril 0
+    setprop ril.work 0
+
+    # Reduce reserved lowmem from ~48MB to ~12MB
+    write /proc/sys/vm/lowmem_reserve_ratio "128 128"
+
+    # Set up kernel tracing, but disable it by default
+    chmod 0222 /sys/kernel/debug/tracing/trace_marker
+    write /sys/kernel/debug/tracing/tracing_on 0
+
+# Run sysinit
+    start sysinit
+
+on fs
+    mount_all /fstab.odroidxu
+
+	#===================================================================
+	#
+	# permissions for bluetooth Mac address
+	#
+	#===================================================================
+	chown bluetooth bluetooth /system/etc/bluetooth
+	chmod 755 /system/etc/bluetooth
+
+# Permissions for backlight
+    chmod 0660 /sys/class/backlight/pwm-backlight.0/brightness
+    chown system system /sys/class/backlight/pwm-backlight.0/brightness
+
+	#===================================================================
+	#
+	# wi-fi post data
+	#
+	#===================================================================
+	mkdir /data/misc/wifi 0770 wifi wifi
+	mkdir /data/misc/wifi/sockets 0770 wifi wifi
+	mkdir /data/misc/dhcp 0770 dhcp dhcp
+	chown dhcp dhcp /data/misc/dhcp
+
+	setprop wifi.interface "wlan0"
+	setprop wlan.interface "wlan0"
+	setprop wlan.driver.status "ok"
+
+    stop ril-daemon
+
+    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+
+#INA231 Energy monitor sensor
+	chmod 0666 /dev/sensor_arm
+	chown system system /dev/sensor_arm
+	chmod 0666 /dev/sensor_kfc
+	chown system system /dev/sensor_kfc
+	chmod 0666 /dev/sensor_g3d
+	chown system system /dev/sensor_g3d
+	chmod 0666 /dev/sensor_mem
+	chown system system /dev/sensor_mem
+
+# 3D init
+service pvrsrvctl /system/vendor/bin/pvrsrvctl --start --no-module
+    class core
+    user root
+    group root
+    oneshot
+	
+service net_usb_module /system/bin/insmod /system/lib/modules/smsc95xx.ko    
+    class core
+    user root
+    group root
+    oneshot
+
+#===================================================================
+#
+# WIFI wpa suppplicant service
+#
+#===================================================================
+#service wpa_supplicant /system/bin/wpa_supplicant -Dnl80211 -iwlan0 -c /data/misc/wifi/wpa_supplicant.conf
+#    class main
+#    socket wpa_wlan0 dgram 0660 wifi wifi
+#    disabled
+#    oneshot
+
+service wpa_supplicant /system/bin/wpa_supplicant -Dwext -iwlan0 -c /data/misc/wifi/wpa_supplicant.conf
+    class main
+    socket wpa_wlan0 dgram 0660 wifi wifi
+    disabled
+    oneshot
+
+service dhcpcd_wlan0 /system/bin/dhcpcd -ABKL
+	class main
+	disabled
+	oneshot
+
+service iprenew_wlan0 /system/bin/dhcpcd -n
+	class main
+	disabled
+	oneshot
+
+service dhcpcd_eth0 /system/bin/dhcpcd -ABKL
+	class main
+	disabled
+	oneshot
+
+service dhcpcd_bnep0 /system/bin/dhcpcd -ABKL
+	class main
+	disabled
+	oneshot
+
+service iprenew_bnep0 /system/bin/dhcpcd -n
+	class main
+	disabled
+	oneshot
+
+# IP Renew
+# eth0 
+service iprenew_eth0 /system/bin/dhcpcd -n
+    class main
+    disabled
+    oneshot
+
+# sysinit (/system/etc/init.d)
+service sysinit /system/bin/sysinit
+    user root
+    oneshot
+
+# create filesystem if necessary
+service setup_fs /system/bin/setup_fs \
+            /dev/block/mmcblk0p3 \
+            /dev/block/mmcblk0p4
+    class core
+    user root
+    group root
+    oneshot
+	
+service dbus /system/bin/dbus-daemon --system --nofork
+    class main
+    socket dbus stream 660 bluetooth bluetooth
+    user bluetooth
+    group bluetooth net_bt_admin
+
+service bluetoothd /system/bin/bluetoothd -n
+    class main
+    socket bluetooth stream 660 bluetooth bluetooth
+    socket dbus_bluetooth stream 660 bluetooth bluetooth
+    # init.rc does not yet support applying capabilities, so run as root and
+    # let bluetoothd drop uid to bluetooth with the right linux capabilities
+    group bluetooth net_bt_admin misc
+    disabled
