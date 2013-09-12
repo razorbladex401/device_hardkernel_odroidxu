@@ -14,4 +14,5 @@
 # limitations under the License.
 #
 
+add_lunch_combo cm_odroidxu-userdebug
 add_lunch_combo odroidxu-userdebug
