@@ -97,6 +97,10 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     system/bluetooth/data/main.nonsmartphone.conf:system/etc/bluetooth/main.conf \
 
+# HardKernel
+PRODUCT_PACKAGES += \
+	OdroidUpdater \
+	Utility
 
 #
 # Modules
